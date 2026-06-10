@@ -1,0 +1,34 @@
+2026/06/09 17:25:30 wazuh-local-analysisd: ERROR: (1226): Error reading XML file 'etc/ossec.conf':  (line 0).
+2026/06/09 17:26:17 wazuh-local-analysisd: ERROR: (1226): Error reading XML file 'etc/ossec.conf':  (line 0).
+2026/06/09 17:26:43 wazuh-local-analysisd: INFO: wazuh-local-analysisd: Starting daemon (PID: 20708)
+2026/06/09 17:26:43 wazuh-local-analysisd: INFO: wazuh-local-analysisd: Loading XML rules from '/home/wazuh/myproject/wazuh-4.14.5/etc/local_rules.xml'
+2026/06/09 17:26:43 wazuh-local-analysisd: INFO: wazuh-local-analysisd: Successfully loaded 2 rules.
+2026/06/09 17:26:43 wazuh-local-analysisd: INFO: wazuh-local-analysisd: Listening on Unix socket '/home/wazuh/myproject/wazuh-4.14.5/src/local_test.sock'
+2026/06/09 17:26:44 wazuh-local-analysisd: INFO: local-analysisd: [ALERT] Rule 100001 (level 3): Local test rule triggered by local log match
+2026/06/09 17:26:46 wazuh-local-analysisd: INFO: (1225): SIGNAL [(15)-(Terminated)] Received. Exit Cleaning...
+2026/06/09 17:27:41 wazuh-local-analysisd: INFO: wazuh-local-analysisd: Starting daemon (PID: 20837)
+2026/06/09 17:27:41 wazuh-local-analysisd: INFO: wazuh-local-analysisd: Loading XML rules from '/home/wazuh/myproject/wazuh-4.14.5/etc/local_rules.xml'
+2026/06/09 17:27:41 wazuh-local-analysisd: INFO: wazuh-local-analysisd: Successfully loaded 2 rules.
+2026/06/09 17:27:41 wazuh-local-analysisd: INFO: wazuh-local-analysisd: Listening on Unix socket '/home/wazuh/myproject/wazuh-4.14.5/src/local_test.sock'
+2026/06/09 17:27:42 wazuh-local-analysisd: INFO: local-analysisd: [ALERT] Rule 100001 (level 3): Local test rule triggered by local log match
+2026/06/09 17:27:47 wazuh-local-analysisd: INFO: (1225): SIGNAL [(15)-(Terminated)] Received. Exit Cleaning...
+2026/06/09 17:31:35 wazuh-local-analysisd: INFO: wazuh-local-analysisd: Starting daemon (PID: 21344)
+2026/06/09 17:31:35 wazuh-local-analysisd: INFO: wazuh-local-analysisd: Loading XML rules from '/home/wazuh/myproject/wazuh-4.14.5/etc/local_rules.xml'
+2026/06/09 17:31:35 wazuh-local-analysisd: INFO: wazuh-local-analysisd: Successfully loaded 2 rules.
+2026/06/09 17:31:35 wazuh-local-analysisd: INFO: wazuh-local-analysisd: Listening on Unix socket '/home/wazuh/myproject/wazuh-4.14.5/src/local_test.sock'
+2026/06/09 17:31:36 wazuh-local-analysisd: INFO: local-analysisd: [ALERT] Rule 100001 (level 3): Local test rule triggered by local log match
+2026/06/09 17:31:41 wazuh-local-analysisd: INFO: (1225): SIGNAL [(15)-(Terminated)] Received. Exit Cleaning...
+2026/06/09 17:32:00 wazuh-local-analysisd: INFO: wazuh-local-analysisd: Starting daemon (PID: 21438)
+2026/06/09 17:32:00 wazuh-local-analysisd: INFO: wazuh-local-analysisd: Loading XML rules from '/home/wazuh/myproject/wazuh-4.14.5/etc/local_rules.xml'
+2026/06/09 17:32:00 wazuh-local-analysisd: INFO: wazuh-local-analysisd: Successfully loaded 2 rules.
+2026/06/09 17:32:00 wazuh-local-analysisd: INFO: wazuh-local-analysisd: Listening on Unix socket '/home/wazuh/myproject/wazuh-4.14.5/src/local_test.sock'
+2026/06/09 17:32:01 wazuh-local-analysisd: INFO: local-analysisd: [ALERT] Rule 100001 (level 3): Local test rule triggered by local log match
+2026/06/09 17:32:02 wazuh-local-analysisd: INFO: local-analysisd: [ALERT] Rule 100002 (level 7): Important file modified on Agent
+2026/06/09 17:32:07 wazuh-local-analysisd: INFO: (1225): SIGNAL [(15)-(Terminated)] Received. Exit Cleaning...
+2026/06/09 18:15:12 wazuh-local-analysisd: INFO: wazuh-local-analysisd: Starting daemon (PID: 25876)
+2026/06/09 18:15:12 wazuh-local-analysisd: INFO: wazuh-local-analysisd: Loading XML rules from '/home/wazuh/myproject/wazuh-4.14.5/etc/local_rules.xml'
+2026/06/09 18:15:12 wazuh-local-analysisd: INFO: wazuh-local-analysisd: Successfully loaded 2 rules.
+2026/06/09 18:15:12 wazuh-local-analysisd: INFO: wazuh-local-analysisd: Listening on Unix socket '/home/wazuh/myproject/wazuh-4.14.5/src/local_test.sock'
+2026/06/09 18:15:13 wazuh-local-analysisd: INFO: local-analysisd: [ALERT] Rule 100001 (level 3): Local test rule triggered by local log match
+2026/06/09 18:15:14 wazuh-local-analysisd: INFO: local-analysisd: [ALERT] Rule 100002 (level 7): Important file modified on Agent
+2026/06/09 18:15:19 wazuh-local-analysisd: INFO: (1225): SIGNAL [(15)-(Terminated)] Received. Exit Cleaning...

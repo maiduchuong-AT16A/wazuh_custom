@@ -1486,6 +1486,25 @@ InstallAgent()
     ${INSTALL} -m 0750 -o root -g ${WAZUH_GROUP} ../wodles/azure/db/__init__.py ${INSTALLDIR}/wodles/azure/db/__init__.py
     ${INSTALL} -m 0750 -o root -g ${WAZUH_GROUP} ../wodles/azure/db/orm.py ${INSTALLDIR}/wodles/azure/db/orm.py
     ${INSTALL} -m 0750 -o root -g ${WAZUH_GROUP} ../wodles/azure/db/utils.py ${INSTALLDIR}/wodles/azure/db/utils.py
+
+    # Local Analysisd directories and rules configuration for Standalone Agent
+    ${INSTALL} -d -m 0770 -o root -g ${WAZUH_GROUP} ${INSTALLDIR}/etc/decoders
+    ${INSTALL} -d -m 0770 -o root -g ${WAZUH_GROUP} ${INSTALLDIR}/etc/rules
+    ${INSTALL} -d -m 0750 -o root -g ${WAZUH_GROUP} ${INSTALLDIR}/ruleset/decoders
+    ${INSTALL} -d -m 0750 -o root -g ${WAZUH_GROUP} ${INSTALLDIR}/ruleset/rules
+
+    ${INSTALL} -m 0640 -o root -g ${WAZUH_GROUP} -b ../ruleset/rules/*.xml ${INSTALLDIR}/ruleset/rules
+    ${INSTALL} -m 0640 -o root -g ${WAZUH_GROUP} -b ../ruleset/decoders/*.xml ${INSTALLDIR}/ruleset/decoders
+
+    if [ ! -f ${INSTALLDIR}/etc/decoders/local_decoder.xml ]; then
+        ${INSTALL} -m 0660 -o ${WAZUH_USER} -g ${WAZUH_GROUP} -b ../etc/local_decoder.xml ${INSTALLDIR}/etc/decoders/local_decoder.xml
+    fi
+    if [ ! -f ${INSTALLDIR}/etc/rules/local_rules.xml ]; then
+        ${INSTALL} -m 0660 -o ${WAZUH_USER} -g ${WAZUH_GROUP} -b ../etc/local_rules.xml ${INSTALLDIR}/etc/rules/local_rules.xml
+    fi
+
+    # Install wazuh-local-analysisd binary
+    ${INSTALL} -m 0750 -o root -g 0 wazuh-local-analysisd ${INSTALLDIR}/bin
 }
 
 InstallWazuh()

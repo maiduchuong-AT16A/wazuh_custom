@@ -172,3 +172,5 @@ src/result-*.txt
 
 # Tool files
 tools/repository_bumper_*
+
+docs/

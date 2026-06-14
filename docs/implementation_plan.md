@@ -12,14 +12,13 @@ Trong giai đoạn đầu, để giảm thiểu độ phức tạp và tách bi�
 flowchart TD
     subgraph Wazuh Agent (Mới - Standalone)
         direction TB
-        
         subgraph Data_Collectors [Bộ thu thập dữ liệu]
             LC[wazuh-logcollector]
             SC[wazuh-syscheckd]
             MOD[wazuh-modulesd]
         end
 
-        MQ[(Unix Domain Socket<br>/var/ossec/queue/ossec/queue)]
+        MQ[(Unix Domain Socket<br>/var/ossec/queue/sockets/queue)]
 
         subgraph LA [wazuh-local-analysisd]
             sock[Lắng nghe socket]
@@ -28,11 +27,13 @@ flowchart TD
             writer[local_writer]
         end
 
-        alerts_file[(alerts/local_alerts.json)]
-        agent_log[(ossec.log)]
+        alerts_file[(logs/alerts/local_alerts.json)]
+        agent_log[(logs/ossec.log)]
     end
 
-    Data_Collectors -->|Ghi log thô| MQ
+    LC -->|Ghi log thô| MQ
+    SC -->|Ghi log thô| MQ
+    MOD -->|Ghi log thô| MQ
     MQ -->|Đọc log tuần tự| sock
     rules_list -->|Nạp XML & compile Regex| engine
     sock -->|Phân tích cú pháp log| engine
@@ -49,7 +50,7 @@ flowchart TD
 | Khía cạnh | Giai đoạn 1 (Hiện tại) | Giai đoạn 2 (Tương lai) |
 | :--- | :--- | :--- |
 | **Gửi về Manager** | **Không** (Tách biệt hoàn toàn) | Có (Chỉ gửi cảnh báo quan trọng qua `agentd`) |
-| **Unix Socket** | `local-analysisd` chiếm socket chính `/var/ossec/queue/ossec/queue` | `local-analysisd` chiếm socket chính, chuyển tiếp sang `alerts_queue` cho `agentd` |
+| **Unix Socket** | `local-analysisd` chiếm socket chính `/var/ossec/queue/sockets/queue` | `local-analysisd` chiếm socket chính, chuyển tiếp sang `alerts_queue` cho `agentd` |
 | **Đầu ra cảnh báo** | Ghi trực tiếp ra file JSON cục bộ trên Agent | Gửi về Manager + Ghi file cục bộ |
 | **Đồng bộ luật** | Cấu hình thủ công tại thư mục `/var/ossec/etc/` của Agent | Tự động đồng bộ từ Manager xuống qua thư mục `shared/` |
 
@@ -142,7 +143,7 @@ Chúng ta sử dụng một kịch bản kiểm thử tự động bằng Python
    - Dừng tiến trình `wazuh-agentd` nếu đang chạy (để tránh xung đột socket).
    - Chạy `wazuh-local-analysisd` bằng tay dưới quyền root.
 3. **Mô phỏng sự kiện:**
-   - Gửi các dòng log mẫu trực tiếp vào Unix socket `/var/ossec/queue/ossec/queue` bằng lệnh `logger` hoặc một script python gửi socket trực tiếp.
+   - Gửi các dòng log mẫu trực tiếp vào Unix socket `/var/ossec/queue/sockets/queue` bằng lệnh `logger` hoặc một script python gửi socket trực tiếp.
 4. **Kiểm tra đầu ra:**
    - Đọc tệp `/var/ossec/logs/alerts/local_alerts.json` để xác minh xem cảnh báo có được sinh ra chính xác tương ứng với các luật đã định nghĩa hay không.
 
@@ -224,8 +225,3 @@ sequenceDiagram
 
 ---
 
-## Câu hỏi mở dành cho User (Open Questions)
-
-> [!IMPORTANT]
-> 1. **Cấu trúc luật cục bộ:** Bạn muốn sử dụng chung định dạng file XML rules/decoders hiện tại của Wazuh hay rút gọn tối giản chỉ sử dụng một cấu hình YAML/JSON đơn giản cho Agent ở giai đoạn 1?
-> 2. **Xử lý tài nguyên:** Ở giai đoạn 1 này, chúng ta có cần giới hạn cứng dung lượng bộ nhớ RAM (ví dụ tối đa 30MB) cho `wazuh-local-analysisd` hay không?

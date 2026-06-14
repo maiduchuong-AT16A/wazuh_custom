@@ -17,7 +17,7 @@ TYPE="agent"
 
 ###  Do not modify below here ###
 AUTHOR="Wazuh Inc."
-DAEMONS="wazuh-modulesd wazuh-logcollector wazuh-syscheckd wazuh-agentd wazuh-execd"
+DAEMONS="wazuh-local-analysisd wazuh-modulesd wazuh-logcollector wazuh-syscheckd wazuh-agentd wazuh-execd"
 
 # Reverse order of daemons
 SDAEMONS=$(echo $DAEMONS | awk '{ for (i=NF; i>1; i--) printf("%s ",$i); print $1; }')
@@ -117,6 +117,9 @@ testconfig()
 {
     # We first loop to check the config.
     for i in ${SDAEMONS}; do
+        if [ "$i" = "wazuh-local-analysisd" ]; then
+            continue
+        fi
         ${DIR}/bin/${i} -t;
         if [ $? != 0 ]; then
             echo "${i}: Configuration error. Exiting"
@@ -188,16 +191,29 @@ start_service()
         if [ $? = 0 ]; then
             failed=false
 
-            if [ ! -z "$LEGACY_SYSTEMD_VERSION" ]; then
-                if command -v systemd-run >/dev/null 2>&1; then
-                    # safe to use systemd-run
-                    systemd-run --scope --slice=system.slice ${DIR}/bin/${i};
+            if [ "$i" = "wazuh-local-analysisd" ]; then
+                if [ ! -z "$LEGACY_SYSTEMD_VERSION" ]; then
+                    systemd-run --scope --slice=system.slice ${DIR}/bin/${i}
                 else
-                    echo "ERROR: systemd is in use but systemd-run is not available" >&2
-                    exit 1
+                    ${DIR}/bin/${i}
+                fi
+                sleep 0.5
+                pid=$(pgrep -f wazuh-local-analysisd | head -n 1)
+                if [ ! -z "$pid" ]; then
+                    echo "$pid" > ${DIR}/var/run/wazuh-local-analysisd-${pid}.pid
                 fi
             else
-                ${DIR}/bin/${i};
+                if [ ! -z "$LEGACY_SYSTEMD_VERSION" ]; then
+                    if command -v systemd-run >/dev/null 2>&1; then
+                        # safe to use systemd-run
+                        systemd-run --scope --slice=system.slice ${DIR}/bin/${i};
+                    else
+                        echo "ERROR: systemd is in use but systemd-run is not available" >&2
+                        exit 1
+                    fi
+                else
+                    ${DIR}/bin/${i};
+                fi
             fi
 
             if [ $? != 0 ]; then

@@ -48,6 +48,8 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
+    int local_analysisd_debug_level = getDefine_Int("local_analysisd", "debug", 0, 2);
+
     while ((c = getopt(argc, argv, "Vtdfhu:g:D:c:q:")) != -1) {
         switch (c) {
             case 'V':
@@ -82,6 +84,14 @@ int main(int argc, char **argv) {
             default:
                 help_local_analysisd(home_path);
                 break;
+        }
+    }
+
+    if (debug_level == 0) {
+        debug_level = local_analysisd_debug_level;
+        while (debug_level != 0) {
+            nowDebug();
+            debug_level--;
         }
     }
 
@@ -175,6 +185,7 @@ int main(int argc, char **argv) {
                 /* Match against local rules */
                 local_rule *matched_rule = match_local_rules(message, locmsg, rules_list);
                 if (matched_rule) {
+                    mdebug1("wazuh-local-analysisd: Detection successful for rule ID %d (level %d)", matched_rule->id, matched_rule->level);
                     /* Write alert locally */
                     write_local_alert(matched_rule, message, locmsg);
                 }

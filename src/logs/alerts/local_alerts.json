@@ -1,2 +1,2 @@
-{"timestamp":"2026-06-09T18:15:13+0000","rule":{"id":100001,"level":3,"description":"Local test rule triggered by local log match"},"location":"logcollector","full_log":"this is a test_local_alert log line"}
-{"timestamp":"2026-06-09T18:15:14+0000","rule":{"id":100002,"level":7,"description":"Important file modified on Agent"},"location":"syscheck","full_log":"file modified: /var/ossec/etc/important.txt"}
+{"timestamp":"2026-06-10T17:32:32+0000","rule":{"id":100001,"level":3,"description":"Local test rule triggered by local log match"},"location":"logcollector","full_log":"this is a test_local_alert log line"}
+{"timestamp":"2026-06-10T17:32:33+0000","rule":{"id":100002,"level":7,"description":"Important file modified on Agent"},"location":"syscheck","full_log":"file modified: /var/ossec/etc/important.txt"}

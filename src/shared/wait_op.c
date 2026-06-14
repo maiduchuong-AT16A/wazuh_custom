@@ -100,17 +100,27 @@ void loop_check(struct stat *file_status, bool (*fn_ptr)()) {
     }
 }
 
+/*
+ * NOTE: os_wait_primitive
+ * This function is used by the Wazuh Agent to wait/block until the agent connects
+ * to the Wazuh Manager. It checks for the existence of the WAIT_FILE (.wait socket file).
+ * If the connection is lost, it loops and pauses execution to prevent data loss.
+ * For our local-analysisd implementation, we have disabled this mechanism by commenting
+ * out the logic and returning immediately so logcollector continues to collect logs 
+ * locally without needing a Manager.
+ */
 void os_wait_primitive(bool (*fn_ptr)()) {
+    /*
     struct stat file_status;
     static atomic_int_t just_unlocked = ATOMIC_INT_INITIALIZER(0);
 
-    /* If the wait file is not present, keep going */
+    // If the wait file is not present, keep going
     if (w_stat(WAIT_FILE, &file_status) == -1) {
         atomic_int_set(&just_unlocked, 1);
         return;
     }
 
-    /* Wait until the lock is gone */
+    // Wait until the lock is gone
     if (atomic_int_get(&just_unlocked) == 1){
         mwarn(WAITING_MSG);
     } else {
@@ -126,6 +136,7 @@ void os_wait_primitive(bool (*fn_ptr)()) {
     }
 
     atomic_int_set(&just_unlocked, 1);
+    */
 
     return;
 }
@@ -144,10 +155,5 @@ void os_wait_predicate(bool (*fn_ptr)()) {
 // Check whether the agent wait mark is on (manager is disconnected)
 
 bool os_iswait() {
-#ifndef WIN32
-    return IsFile(WAIT_FILE) == 0;
-#else
-    return __wait_lock;
-#endif
-
+    return false;
 }

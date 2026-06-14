@@ -5,7 +5,7 @@
 #include <sys/types.h>
 #include <cJSON.h>
 
-void write_local_alert(const local_rule *rule, const char *log_msg, const char *location) {
+void write_local_alert(const RuleInfo *rule, const char *log_msg, const char *location) {
     char timestamp[64];
     time_t now = time(NULL);
     struct tm num_time;
@@ -18,9 +18,9 @@ void write_local_alert(const local_rule *rule, const char *log_msg, const char *
     cJSON_AddStringToObject(root, "timestamp", timestamp);
 
     cJSON *rule_json = cJSON_CreateObject();
-    cJSON_AddNumberToObject(rule_json, "id", rule->id);
+    cJSON_AddNumberToObject(rule_json, "id", rule->sigid);
     cJSON_AddNumberToObject(rule_json, "level", rule->level);
-    cJSON_AddStringToObject(rule_json, "description", rule->description ? rule->description : "");
+    cJSON_AddStringToObject(rule_json, "description", rule->comment ? rule->comment : "");
     cJSON_AddItemToObject(root, "rule", rule_json);
 
     cJSON_AddStringToObject(root, "location", location ? location : "unknown");
@@ -43,7 +43,7 @@ void write_local_alert(const local_rule *rule, const char *log_msg, const char *
         }
 
         /* Also print alert to log */
-        minfo("local-analysisd: [ALERT] Rule %d (level %d): %s", rule->id, rule->level, rule->description ? rule->description : "");
+        minfo("local-analysisd: [ALERT] Rule %d (level %d): %s", rule->sigid, rule->level, rule->comment ? rule->comment : "");
 
         free(json_str);
     }

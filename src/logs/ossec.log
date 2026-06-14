@@ -78,3 +78,6 @@
 2026/06/10 17:32:33 wazuh-local-analysisd[31933] main.c:188 at main(): DEBUG: wazuh-local-analysisd: Detection successful for rule ID 100002 (level 7)
 2026/06/10 17:32:33 wazuh-local-analysisd[31933] local_writer.c:46 at write_local_alert(): INFO: local-analysisd: [ALERT] Rule 100002 (level 7): Important file modified on Agent
 2026/06/10 17:32:38 wazuh-local-analysisd[31933] sig_op.c:49 at HandleSIG(): INFO: (1225): SIGNAL [(15)-(Terminated)] Received. Exit Cleaning...
+2026/06/14 15:28:15 wazuh-local-analysisd: INFO: wazuh-local-analysisd: Starting daemon (PID: 44393)
+2026/06/14 15:28:15 wazuh-local-analysisd: INFO: wazuh-local-analysisd: Loading XML decoders and rules...
+2026/06/14 15:28:15 wazuh-local-analysisd: CRITICAL: Could not open directory ruleset/decoders

@@ -1,14 +1,54 @@
 /* wazuh-local-analysisd main entry point */
 #include "shared.h"
-#include "local_rules.h"
+#include "local_rules_engine.h"
+#include "local_decoder_engine.h"
+#include "local_eventinfo.h"
+#include "local_cleanevent.h"
 #include "local_writer.h"
 #include "os_net/os_net.h"
+#include <dirent.h>
 
 #define ARGV0 "wazuh-local-analysisd"
 
 int run_foreground;
 
 static void help_local_analysisd(char *home_path) __attribute((noreturn));
+
+static int filter_xml(const struct dirent *ent) {
+    size_t len = strlen(ent->d_name);
+    if (len > 4 && strcmp(ent->d_name + len - 4, ".xml") == 0) {
+        return 1;
+    }
+    return 0;
+}
+
+static void load_xml_directory(const char *dir_path, int is_rule, OSList* log_msg) {
+    struct dirent **namelist;
+    int n;
+    char file_path[PATH_MAX];
+
+    n = scandir(dir_path, &namelist, filter_xml, alphasort);
+    if (n < 0) {
+        merror_exit("Could not open directory %s", dir_path);
+    } else {
+        for (int i = 0; i < n; i++) {
+            snprintf(file_path, sizeof(file_path), "%s/%s", dir_path, namelist[i]->d_name);
+            if (is_rule) {
+                minfo("wazuh-local-analysisd: Loading rule %s", file_path);
+                if (Rules_OP_ReadRules(file_path, &os_analysisd_rulelist, NULL, &os_analysisd_last_events, &os_analysisd_decoder_store, log_msg, false) < 0) {
+                    merror("Cannot read rule %s", file_path);
+                }
+            } else {
+                minfo("wazuh-local-analysisd: Loading decoder %s", file_path);
+                if (ReadDecodeXML(file_path, &os_analysisd_decoderlist_pn, &os_analysisd_decoderlist_nopn, &os_analysisd_decoder_store, log_msg) < 0) {
+                    merror("Cannot read decoder %s", file_path);
+                }
+            }
+            free(namelist[i]);
+        }
+        free(namelist);
+    }
+}
 
 static void help_local_analysisd(char *home_path) {
     print_header();
@@ -33,7 +73,6 @@ int main(int argc, char **argv) {
 
     const char *user = USER;
     const char *group = GROUPGLOBAL;
-    const char *cfg_path = "etc/local_rules.xml";
     const char *socket_path = DEFAULTQUEUE;
 
     run_foreground = 0;
@@ -75,7 +114,6 @@ int main(int argc, char **argv) {
                 break;
             case 'c':
                 if (!optarg) merror_exit("-c needs an argument");
-                cfg_path = optarg;
                 break;
             case 'q':
                 if (!optarg) merror_exit("-q needs an argument");
@@ -114,27 +152,29 @@ int main(int argc, char **argv) {
     StartSIG(ARGV0);
 
     /* Load local rules configuration */
-    minfo("wazuh-local-analysisd: Loading XML rules from '%s'", cfg_path);
-    local_rule *rules_list = load_local_rules(cfg_path);
-    if (!rules_list) {
-        merror("wazuh-local-analysisd: Failed to load rules from '%s'. Exiting.", cfg_path);
-        exit(1);
-    }
+    minfo("wazuh-local-analysisd: Loading XML decoders and rules...");
+    OSList* log_msg = OSList_Create();
+    
+    OS_CreateOSDecoderList();
+    OS_CreateRuleList();
+    
+    load_xml_directory("ruleset/decoders", 0, log_msg);
+    load_xml_directory("etc/decoders", 0, log_msg);
+    SetDecodeXML(log_msg, &os_analysisd_decoder_store, &os_analysisd_decoderlist_nopn, &os_analysisd_decoderlist_pn);
+    
+    os_calloc(1, sizeof(EventList), os_analysisd_last_events);
+    OS_CreateEventList(256, os_analysisd_last_events);
 
-    int rule_count = 0;
-    local_rule *tmp = rules_list;
-    while (tmp) {
-        rule_count++;
-        tmp = tmp->next;
-    }
-    minfo("wazuh-local-analysisd: Successfully loaded %d rules.", rule_count);
+    load_xml_directory("ruleset/rules", 1, log_msg);
+    load_xml_directory("etc/rules", 1, log_msg);
+
+    minfo("wazuh-local-analysisd: Successfully loaded Rules and Decoders.");
 
     /* Bind Unix domain socket (DGRAM) */
     minfo("wazuh-local-analysisd: Listening on Unix socket '%s'", socket_path);
     int sock = OS_BindUnixDomainWithPerms(socket_path, SOCK_DGRAM, OS_MAXSTR + 512, uid, gid, 0660);
     if (sock < 0) {
         merror("wazuh-local-analysisd: Unable to bind socket '%s': %s (%d)", socket_path, strerror(errno), errno);
-        free_local_rules(rules_list);
         exit(1);
     }
 
@@ -161,42 +201,39 @@ int main(int argc, char **argv) {
         msg[recv_b] = '\0';
         mdebug2("wazuh-local-analysisd: Raw event received: %s", msg);
 
-        /* Parse log format: loc:locmsg:message */
-        char *p = strchr(msg, ':');
-        if (p) {
-            char *locmsg = p + 1;
-            char *message = NULL;
-
-            char *arrow = strstr(locmsg, "->");
-            if (arrow) {
-                *arrow = '\0';
-                message = arrow + 2;
-            } else {
-                char *colon = strchr(locmsg, ':');
-                if (colon) {
-                    *colon = '\0';
-                    message = colon + 1;
-                }
-            }
-
-            if (message) {
-                mdebug2("wazuh-local-analysisd: Extracted location: '%s', message: '%s'", locmsg, message);
-
-                /* Match against local rules */
-                local_rule *matched_rule = match_local_rules(message, locmsg, rules_list);
-                if (matched_rule) {
-                    mdebug1("wazuh-local-analysisd: Detection successful for rule ID %d (level %d)", matched_rule->id, matched_rule->level);
-                    /* Write alert locally */
-                    write_local_alert(matched_rule, message, locmsg);
-                }
-            }
+        /* Process Event */
+        Eventinfo *lf;
+        os_calloc(1, sizeof(Eventinfo), lf);
+        os_calloc(Config.decoder_order_size, sizeof(DynamicField), lf->fields);
+        Zero_Eventinfo(lf);
+        
+        if (OS_CleanMSG(msg, lf) < 0) {
+            w_free_event_info(lf);
+            continue; // Could not parse
         }
+        
+        regex_matching decoder_match;
+        memset(&decoder_match, 0, sizeof(regex_matching));
+        
+        DecodeEvent(lf, NULL, &decoder_match, os_analysisd_decoderlist_nopn);
+        if (lf->program_name) {
+            DecodeEvent(lf, NULL, &decoder_match, os_analysisd_decoderlist_pn);
+        }
+        
+        RuleInfo *matched_rule = OS_CheckIfRuleMatch(lf, os_analysisd_last_events, NULL, os_analysisd_rulelist, &decoder_match, NULL, NULL, false, NULL);
+        
+        if (matched_rule && matched_rule->level >= 3) {
+            mdebug1("wazuh-local-analysisd: Detection successful for rule ID %d (level %d)", matched_rule->sigid, matched_rule->level);
+            /* Write alert locally */
+            write_local_alert(matched_rule, msg, lf->location);
+        }
+        
+        w_free_event_info(lf);
     }
 
     /* Cleanup */
     close(sock);
     unlink(socket_path);
-    free_local_rules(rules_list);
     minfo("wazuh-local-analysisd: Stopped.");
     return 0;
 }

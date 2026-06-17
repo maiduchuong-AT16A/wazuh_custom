@@ -1,0 +1,20 @@
+- name: "Added0"
+  description: "Test syscheck added rare event"
+  input: '8:syscheck:{"type":"event","data":{"path":"/testdir0/test_file","mode":"realtime","type":"added","timestamp":1581438201,"attributes":{"type":"file","size":0,"perm":"rw-r--r--","uid":"0","gid":"0","user_name":"root","group_name":"root","inode":1185139,"mtime":1581438201,"hash_md5":"d41d8cd98f00b204e9800998ecf8427e","hash_sha1":"da39a3ee5e6b4b0d3255bfef95601890afd80709","hash_sha256":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","checksum":"1234"},"tags":"Sample"}}'
+  expected:
+    rule_id: "554"
+    level: 0
+
+- name: "Modified0"
+  description: "Test syscheck modified rare event"
+  input: '8:syscheck:{"type":"event","data":{"path":"/testdir0/test_file","mode":"realtime","type":"modified","timestamp":1581438247,"attributes":{"type":"file","size":8,"perm":"rw-rw-rw-","uid":"1","gid":"1","user_name":"bin","group_name":"bin","inode":1184275,"mtime":1581439247,"hash_md5":"35e0c8c0b180c95d4e122e55ed62cc64","hash_sha1":"19a532c8bc61c311f583455c80ffe37067bbc9bb","hash_sha256":"e8ce5dcaf408935ff76747226d2e8bee4319a2f593c1d7a838115e56183d1f37","checksum":"fca7b920a5b48e38f8b2424ffb8f53d4b4f49dc6"},"changed_attributes":["size","permission","uid","user_name","gid","group_name","mtime","inode","md5","sha1","sha256"],"old_attributes":{"type":"file","size":0,"perm":"rw-r--r--","uid":"0","gid":"0","user_name":"root","group_name":"root","inode":1185139,"mtime":1581438201,"hash_md5":"d41d8cd98f00b204e9800998ecf8427e","hash_sha1":"da39a3ee5e6b4b0d3255bfef95601890afd80709","hash_sha256":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","checksum":"0cae53db223561d1a96bba22e0600a178f6aaeba"},"content_changes":"0a1\n>\nModified\n\\ No newline at end of file\n","tags":"Sample"}}'
+  expected:
+    rule_id: "550"
+    level: 7
+
+- name: "Deleted0"
+  description: "Test syscheck deleted rare event"
+  input: '8:syscheck:{"type":"event","data":{"path":"/testdir0/test_file","mode":"realtime","type":"deleted","timestamp":1581438247,"attributes":{"type":"file","size":8,"perm":"rw-rw-rw-","uid":"1","gid":"1","user_name":"bin","group_name":"bin","inode":1184275,"mtime":1581439247,"hash_md5":"35e0c8c0b180c95d4e122e55ed62cc64","hash_sha1":"19a532c8bc61c311f583455c80ffe37067bbc9bb","hash_sha256":"e8ce5dcaf408935ff76747226d2e8bee4319a2f593c1d7a838115e56183d1f37","checksum":"fca7b920a5b48e38f8b2424ffb8f53d4b4f49dc6"},"tags":"Sample"}}'
+  expected:
+    rule_id: "553"
+    level: 7

@@ -49,7 +49,7 @@ flowchart TD
 
 | Khía cạnh | Giai đoạn 1 (Hiện tại) | Giai đoạn 2 (Tương lai) |
 | :--- | :--- | :--- |
-| **Gửi về Manager** | **Không** (Tách biệt hoàn toàn) | Có (Chỉ gửi cảnh báo quan trọng qua `agentd`) |
+| **Gửi về Manager** | **Không** (Tách biệt hoàn toàn, *wazuh-agentd* đã bị loại bỏ khỏi luồng build) | Có (Chỉ gửi cảnh báo quan trọng qua `agentd`) |
 | **Unix Socket** | `local-analysisd` chiếm socket chính `/var/ossec/queue/sockets/queue` | `local-analysisd` chiếm socket chính, chuyển tiếp sang `alerts_queue` cho `agentd` |
 | **Đầu ra cảnh báo** | Ghi trực tiếp ra file JSON cục bộ trên Agent | Gửi về Manager + Ghi file cục bộ |
 | **Đồng bộ luật** | Cấu hình thủ công tại thư mục `/var/ossec/etc/` của Agent | Tự động đồng bộ từ Manager xuống qua thư mục `shared/` |
@@ -225,3 +225,80 @@ sequenceDiagram
 
 ---
 
+## Kế hoạch Giai đoạn 2: Mô hình Hybrid Agent (Agent Lai)
+
+Giai đoạn 2 tập trung vào việc tái cấu trúc `wazuh-agentd` để hoạt động song song với `wazuh-local-analysisd`, tạo thành một kiến trúc lai (Hybrid): Vừa có khả năng phân tích và phản ứng hoàn toàn độc lập khi mất mạng, vừa có khả năng báo cáo tập trung và cập nhật luật tự động khi có mạng.
+
+### 1. Kiến trúc luồng xử lý lai (Hybrid Pipeline)
+Dưới đây là sơ đồ luồng dữ liệu tổng quan (Overview Data Flow) của Giai đoạn 2:
+
+```mermaid
+flowchart TD
+    %% Khối Nguồn Log
+    subgraph Sources ["Nguồn dữ liệu thô (Raw Logs)"]
+        SYS["Syslog / Auth"]
+        PAM["PAM / SSH"]
+        WIN["Windows Event"]
+    end
+
+    LC["wazuh-logcollector"]
+    
+    S1(("Socket 1: /queue/sockets/queue"))
+    
+    subgraph LocalAnalysis ["wazuh-local-analysisd"]
+        DECODER["Giải mã (Decoders)"]
+        RULES["So khớp (Rules Engine)"]
+        FILTER{"Alert Level >= 5"}
+    end
+    
+    JSON[("Ghi đĩa: local_alerts.json")]
+    
+    S2(("Socket 2: /queue/sockets/alerts_queue"))
+    
+    AGENT["wazuh-agentd"]
+    MANAGER(("Wazuh Manager"))
+    
+    Sources --> LC
+    LC -->|"DGRAM Message"| S1
+    S1 --> DECODER
+    DECODER --> RULES
+    RULES -->|"Khớp luật"| FILTER
+    
+    FILTER -->|"Mọi cảnh báo"| JSON
+    FILTER -->|"Cảnh báo mức độ cao"| S2
+    
+    S2 -->|"Nhận cảnh báo"| AGENT
+    AGENT -->|"Gửi TCP/UDP"| MANAGER
+    
+    MANAGER -.->|"Cập nhật rules/decoders"| AGENT
+    AGENT -.->|"Ghi file"| SHARED["/var/ossec/etc/shared/"]
+    SHARED -.->|"Hot-Reload inotify"| LocalAnalysis
+```
+
+Thay vì cạnh tranh dữ liệu đầu vào, các thành phần sẽ được thiết kế thành một chuỗi (pipeline) liền mạch:
+1. `wazuh-logcollector` đọc log và đẩy vào socket gốc (`/var/ossec/queue/sockets/queue`).
+2. `wazuh-local-analysisd` tiếp nhận log, dùng Rules Engine cục bộ để giải mã và so khớp.
+3. Nếu sinh ra cảnh báo, `wazuh-local-analysisd` sẽ ghi vào tệp JSON cục bộ.
+4. **[MỚI] Bộ lọc Forwarder**: Nếu cảnh báo có mức độ (Level) vượt quá một ngưỡng nhất định (ví dụ: Level >= 5), `local-analysisd` sẽ đẩy tiếp cảnh báo này qua một Unix Socket chuyên dụng khác (ví dụ: `queue/sockets/alerts_queue`).
+5. **[MỚI] Khôi phục `wazuh-agentd`**: Tiến trình `wazuh-agentd` được khôi phục, nhưng cấu hình lại để chỉ lắng nghe từ `alerts_queue` và gửi các cảnh báo chọn lọc này lên Wazuh Manager qua mạng.
+
+### 2. Các công việc kỹ thuật cần triển khai
+
+#### 2.1. Khôi phục và tái định tuyến `wazuh-agentd`
+- **Build System**: Bật lại `wazuh-agentd` trong `src/Makefile` và script `inst-functions.sh`.
+- **Cấu hình Socket**: Can thiệp vào mã nguồn khởi tạo của `wazuh-agentd` để nó **không** lắng nghe socket `/var/ossec/queue/sockets/queue` mặc định của logcollector nữa, mà chuyển sang lắng nghe một socket mới dành riêng cho alert. Việc này giải quyết dứt điểm lỗi tranh giành socket (Race Condition).
+
+#### 2.2. Xây dựng module Forwarder cho `wazuh-local-analysisd`
+- Sửa đổi tệp `src/local-analysisd/local_writer.c` (hoặc tạo `local_forwarder.c`).
+- Thêm logic kiểm tra mức độ cảnh báo (Alert Level).
+- Tích hợp hàm `OS_SendUnix()` để gửi chuỗi cảnh báo an toàn tới socket của `wazuh-agentd`.
+
+#### 2.3. Tự động đồng bộ Luật (Ruleset Auto-Sync)
+- Tận dụng cơ chế đồng bộ thư mục `shared/` mặc định giữa Wazuh Manager và `wazuh-agentd`.
+- Cấu hình `wazuh-local-analysisd` trỏ đường dẫn nạp XML (rules/decoders) sang thư mục `etc/shared/default/` (nơi `agentd` lưu file được tải về).
+- **Cơ chế Hot-Reload**: Tích hợp cơ chế giám sát thay đổi file (inotify) vào `local-analysisd` để mỗi khi Manager đẩy tập luật mới xuống, Agent sẽ tự động nạp lại luật trên RAM mà không cần phải khởi động lại (restart) toàn bộ dịch vụ.
+
+### 3. Phương pháp Kiểm thử cho Giai đoạn 2
+- Cấu hình một máy chủ Wazuh Manager tối thiểu để Agent kết nối vào.
+- Xác minh tính chính xác của cơ chế lọc: Đảm bảo các cảnh báo Level thấp chỉ nằm lại file JSON cục bộ, trong khi các cảnh báo Level cao xuất hiện trên bảng điều khiển (Dashboard) của Manager.
+- Giả lập rớt mạng cục bộ: Tắt card mạng, tạo các cảnh báo và xác nhận `wazuh-local-analysisd` vẫn tiếp tục sinh log vào file JSON đều đặn.

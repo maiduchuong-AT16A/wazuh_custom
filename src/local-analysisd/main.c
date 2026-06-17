@@ -168,6 +168,8 @@ int main(int argc, char **argv) {
     load_xml_directory("ruleset/rules", 1, log_msg);
     load_xml_directory("etc/rules", 1, log_msg);
 
+    _setlevels(OS_GetFirstRule(), 0);
+
     minfo("wazuh-local-analysisd: Successfully loaded Rules and Decoders.");
 
     /* Bind Unix domain socket (DGRAM) */

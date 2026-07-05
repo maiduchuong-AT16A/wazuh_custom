@@ -2368,10 +2368,10 @@ STATIC void Rule_AddAR(RuleInfo *rule_config)
      */
     if (rule_config->level == 9900) {
         rule_real_level = 0;
-    }
-
-    else if (rule_config->level >= 100) {
+    } else if (rule_config->level >= 100) {
         rule_real_level = rule_config->level / 100;
+    } else {
+        rule_real_level = rule_config->level;
     }
 
     /* No AR for ignored rules */
@@ -2532,6 +2532,9 @@ int _setlevels(RuleNode *node, int nnode)
 
         /* Rule information */
         printRuleinfo(node->ruleinfo, nnode);
+
+        /* Check for rule_id active responses */
+        Rule_AddAR(node->ruleinfo);
 
         if (node->child) {
             int chl_size = 0;

@@ -5,6 +5,8 @@
 #include "local_eventinfo.h"
 #include "local_cleanevent.h"
 #include "local_writer.h"
+#include "local_ar_config.h"
+#include "local_exec.h"
 #include "os_net/os_net.h"
 #include <dirent.h>
 
@@ -27,9 +29,13 @@ static void load_xml_directory(const char *dir_path, int is_rule, OSList* log_ms
     int n;
     char file_path[PATH_MAX];
 
+    char cwd[PATH_MAX];
+    if (getcwd(cwd, sizeof(cwd)) != NULL) {
+        minfo("wazuh-local-analysisd: current working directory: %s", cwd);
+    }
     n = scandir(dir_path, &namelist, filter_xml, alphasort);
     if (n < 0) {
-        merror_exit("Could not open directory %s", dir_path);
+        merror_exit("Could not open directory %s: %s (errno %d)", dir_path, strerror(errno), errno);
     } else {
         for (int i = 0; i < n; i++) {
             snprintf(file_path, sizeof(file_path), "%s/%s", dir_path, namelist[i]->d_name);
@@ -76,13 +82,16 @@ int main(int argc, char **argv) {
     const char *socket_path = DEFAULTQUEUE;
 
     run_foreground = 0;
+    int test_config = 0;
 
     /* Set process name */
     OS_SetName(ARGV0);
 
+
     /* Change working directory */
     if (chdir(home_path) == -1) {
-        merror(CHDIR_ERROR, home_path, errno, strerror(errno));
+        /* We can't use merror yet because logging is not initialized properly relative to home_path */
+        fprintf(stderr, "wazuh-local-analysisd: Cannot chdir to %s: %s\\n", home_path, strerror(errno));
         os_free(home_path);
         exit(1);
     }
@@ -101,8 +110,16 @@ int main(int argc, char **argv) {
                 nowDebug();
                 debug_level++;
                 break;
+            case 'D':
+                if (!optarg) merror_exit("-D needs an argument");
+                os_free(home_path);
+                os_strdup(optarg, home_path);
+                break;
             case 'f':
                 run_foreground = 1;
+                break;
+            case 't':
+                test_config = 1;
                 break;
             case 'u':
                 if (!optarg) merror_exit("-u needs an argument");
@@ -133,7 +150,6 @@ int main(int argc, char **argv) {
         }
     }
 
-    os_free(home_path);
     minfo("wazuh-local-analysisd: Starting daemon (PID: %d)", (int)getpid());
 
     /* Check if the user/group given are valid */
@@ -143,13 +159,32 @@ int main(int argc, char **argv) {
         merror_exit(USER_ERROR, user, group, strerror(errno), errno);
     }
 
-    /* Go daemon mode if foreground is not set */
-    if (!run_foreground) {
+    /* Go daemon mode if foreground is not set and not testing config */
+    if (!run_foreground && !test_config) {
         goDaemon();
+    }
+
+    if (CreatePID(ARGV0, getpid()) < 0) {
+        merror_exit(PID_ERROR, ARGV0, errno, strerror(errno));
     }
 
     /* Start the signal manipulation */
     StartSIG(ARGV0);
+
+    /* Load Active Response configuration */
+    char cwd[1024];
+    if (getcwd(cwd, sizeof(cwd)) != NULL) {
+        minfo("wazuh-local-analysisd: Current working directory: %s", cwd);
+    }
+    minfo("wazuh-local-analysisd: Loading Active Response configuration...");
+    if (local_ar_config_init("etc/ossec.conf") < 0) {
+        mwarn("wazuh-local-analysisd: Could not load Active Response config from etc/ossec.conf");
+    }
+
+    if (test_config) {
+        minfo("wazuh-local-analysisd: Configuration validated successfully. Exiting.");
+        exit(0);
+    }
 
     /* Load local rules configuration */
     minfo("wazuh-local-analysisd: Loading XML decoders and rules...");
@@ -224,13 +259,59 @@ int main(int argc, char **argv) {
         
         RuleInfo *matched_rule = OS_CheckIfRuleMatch(lf, os_analysisd_last_events, NULL, os_analysisd_rulelist, &decoder_match, NULL, NULL, false, NULL);
         
-        if (matched_rule && matched_rule->level >= 3) {
+        if (matched_rule && matched_rule->level >= 0) { // for test
             mdebug1("wazuh-local-analysisd: Detection successful for rule ID %d (level %d)", matched_rule->sigid, matched_rule->level);
             /* Write alert locally */
             write_local_alert(matched_rule, msg, lf->location);
+            
+            /* Trigger Active Responses */
+            if (matched_rule->ar) {
+                minfo("wazuh-local-analysisd: Rule %d has AR attached!", matched_rule->sigid);
+                for (int i = 0; matched_rule->ar[i]; i++) {
+                    active_response *ar = matched_rule->ar[i];
+                    minfo("wazuh-local-analysisd: Triggering AR: %s", ar->name);
+                    local_OS_Exec(ar, lf, matched_rule, msg);
+                }
+            } else {
+                minfo("wazuh-local-analysisd: Rule %d has NO AR attached.", matched_rule->sigid);
+            }
+            
+            /* State tracking for if_matched_sid */
+            if (matched_rule->sid_prev_matched) {
+                OSListNode *node;
+                w_mutex_lock(&matched_rule->mutex);
+                if (node = OSList_AddData(matched_rule->sid_prev_matched, lf), !node) {
+                    merror("Unable to add data to sig list.");
+                } else {
+                    lf->sid_node_to_delete = node;
+                }
+                w_mutex_unlock(&matched_rule->mutex);
+            }
+            /* Group list */
+            else if (matched_rule->group_prev_matched) {
+                unsigned int j = 0;
+                OSListNode *node;
+
+                w_mutex_lock(&matched_rule->mutex);
+                os_calloc(matched_rule->group_prev_matched_sz, sizeof(OSListNode *), lf->group_node_to_delete);
+                while (j < matched_rule->group_prev_matched_sz) {
+                    if (node = OSList_AddData(matched_rule->group_prev_matched[j], lf), !node) {
+                        merror("Unable to add data to grp list.");
+                    } else {
+                        lf->group_node_to_delete[j] = node;
+                    }
+                    j++;
+                }
+                w_mutex_unlock(&matched_rule->mutex);
+            }
+            
+            lf->queue_added = 1;
+            OS_AddEvent(lf, os_analysisd_last_events);
+        } else {
+            if (!lf->queue_added) {
+                w_free_event_info(lf);
+            }
         }
-        
-        w_free_event_info(lf);
     }
 
     /* Cleanup */

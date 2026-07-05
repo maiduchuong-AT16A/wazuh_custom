@@ -4,6 +4,8 @@
 
 # Development Documentation
 
+- [Local Active Response Plan](local_active_response_plan.md)
+
 # Reference Manual
 
 - [Introduction](ref/README.md)

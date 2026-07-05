@@ -18,25 +18,8 @@ extern int __crt_wday;
 #define smwarn(list, msg, ...) mwarn(msg, ##__VA_ARGS__)
 #define smerror(list, msg, ...) merror(msg, ##__VA_ARGS__)
 
-/* Mock for active-response.h */
-typedef struct _ar_command {
-    int timeout_allowed;
-    char *name;
-    char *executable;
-    char *extra_args;
-} ar_command;
-
-typedef struct _ar {
-    int timeout;
-    int location;
-    int level;
-    char *name;
-    char *command;
-    char *agent_id;
-    char *rules_id;
-    char *rules_group;
-    ar_command *ar_cmd;
-} active_response;
+/* Active response */
+#include "config/active-response.h"
 
 extern OSList *active_responses;
 

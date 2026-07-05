@@ -290,7 +290,7 @@ void os_logging_config(){
     flags.log_plain = 1;
     flags.log_json = 0;
     OS_ClearXML(&xml);
-    mlerror_exit(LOGLEVEL_ERROR, XML_ERROR, OSSECCONF, xml.err, xml.err_line);
+    mlerror_exit(LOGLEVEL_ERROR, "(1226): Error reading XML file %s (errno %d: %s)", OSSECCONF, errno, strerror(errno));
   }
 
   logformat = OS_GetOneContentforElement(&xml, xmlf);

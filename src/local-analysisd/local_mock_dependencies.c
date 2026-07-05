@@ -17,15 +17,6 @@ void *(plugin_decoders_init[]) = { NULL };
 void *(plugin_decoders_exec[]) = { NULL };
 
 const char *(compiled_rules_name[]) = { NULL };
-void OS_CreateEventList(int maxsize, EventList *list)
-{
-    list->first_node = NULL;
-    list->last_added_node = NULL;
-    list->_memorymaxsize = maxsize;
-    list->_memoryused = 0;
-    list->_max_freq = 0;
-    pthread_mutex_init(&list->event_mutex, NULL);
-}
 
 void *(compiled_rules_list[]) = { NULL };
 
@@ -51,10 +42,6 @@ char *FTS(struct _Eventinfo *lf, OSList **fts_list, OSHash **fts_store) {
 
 time_t w_get_current_time(void) {
     return time(NULL);
-}
-
-EventNode *OS_GetFirstEvent(EventList *list) {
-    return NULL;
 }
 
 int doDiff(RuleInfo *rule, struct _Eventinfo *lf) {

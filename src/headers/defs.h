@@ -118,6 +118,7 @@ https://www.gnu.org/licenses/gpl.html\n"
 
 /* Default queue */
 #define DEFAULTQUEUE    "queue/sockets/queue"
+#define ALERTSQUEUE     "queue/sockets/alerts_queue"
 
 // Authd local socket
 #define AUTH_LOCAL_SOCK "queue/sockets/auth"

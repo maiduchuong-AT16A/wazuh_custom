@@ -1224,6 +1224,18 @@ void * ad_input_main(void * args) {
             w_add_recv((unsigned long) recv);
             w_inc_received_events();
 
+            if (msg[0] == 'A' && msg[1] == ':') {
+                /* JSON ALREADY ANALYZED BY EDGE AGENT - BYPASS ENGINE */
+                char *json_str = msg + 2;
+                w_mutex_lock(&writer_threads_mutex);
+                if (_jflog) {
+                    fprintf(_jflog, "%s\n", json_str);
+                    fflush(_jflog);
+                }
+                w_mutex_unlock(&writer_threads_mutex);
+                continue;
+            }
+
             result = -1;
             // take the ruleset
             w_rwlock_rdlock(&g_hotreload_ruleset_mutex);

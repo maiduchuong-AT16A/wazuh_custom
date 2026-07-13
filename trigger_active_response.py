@@ -7,7 +7,7 @@ def trigger_active_response():
     socket_path = "/var/ossec/queue/sockets/queue"
     
     # Địa chỉ IP giả lập của kẻ tấn công mà ta muốn firewall chặn
-    attacker_ip = "192.168.99.101"
+    attacker_ip = "192.168.99.102"
     
     try:
         # Tạo Unix Domain Socket (Datagram) - chuẩn giao tiếp của Wazuh

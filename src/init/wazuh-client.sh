@@ -17,7 +17,7 @@ TYPE="agent"
 
 ###  Do not modify below here ###
 AUTHOR="Wazuh Inc."
-DAEMONS="wazuh-local-analysisd wazuh-modulesd wazuh-logcollector wazuh-syscheckd wazuh-execd"
+DAEMONS="wazuh-local-analysisd wazuh-agentd wazuh-modulesd wazuh-logcollector wazuh-syscheckd wazuh-execd"
 
 # Reverse order of daemons
 SDAEMONS=$(echo $DAEMONS | awk '{ for (i=NF; i>1; i--) printf("%s ",$i); print $1; }')

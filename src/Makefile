@@ -803,8 +803,8 @@ BUILD_SERVER+=wazuh-modulesd
 BUILD_SERVER+=wazuh-db
 BUILD_SERVER+=wazuh-keystore
 
-# BUILD_AGENT+=wazuh-agentd
-# BUILD_AGENT+=agent-auth
+BUILD_AGENT+=wazuh-agentd
+BUILD_AGENT+=agent-auth
 BUILD_AGENT+=wazuh-logcollector
 BUILD_AGENT+=wazuh-syscheckd
 BUILD_AGENT+=wazuh-execd

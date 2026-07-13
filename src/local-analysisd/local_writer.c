@@ -5,6 +5,12 @@
 #include <sys/types.h>
 #include <cJSON.h>
 
+#include <unistd.h>
+#include "os_net/os_net.h"
+#include "defs.h"
+
+static int alerts_sock = -1;
+
 void write_local_alert(const RuleInfo *rule, const char *log_msg, const char *location) {
     char timestamp[64];
     time_t now = time(NULL);
@@ -30,6 +36,25 @@ void write_local_alert(const RuleInfo *rule, const char *log_msg, const char *lo
     cJSON_Delete(root);
 
     if (json_str) {
+        /* Forward JSON to Wazuh Manager via wazuh-agentd socket */
+        if (alerts_sock < 0) {
+            alerts_sock = OS_ConnectUnixDomain(ALERTSQUEUE, SOCK_DGRAM, OS_MAXSTR);
+        }
+        
+        if (alerts_sock >= 0) {
+            char fwd_msg[OS_MAXSTR + 1];
+            snprintf(fwd_msg, OS_MAXSTR, "A:%s", json_str);
+            if (OS_SendUnix(alerts_sock, fwd_msg, 0) < 0) {
+                mdebug1("local-analysisd: Error sending alert to %s", ALERTSQUEUE);
+                close(alerts_sock);
+                alerts_sock = -1;
+            } else {
+                mdebug2("local-analysisd: Successfully forwarded alert to %s", ALERTSQUEUE);
+            }
+        } else {
+            mdebug1("local-analysisd: Unable to connect to %s", ALERTSQUEUE);
+        }
+
         /* Ensure directory exists */
         mkdir("logs", 0770);
         mkdir("logs/alerts", 0770);

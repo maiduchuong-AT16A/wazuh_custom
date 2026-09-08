@@ -69,6 +69,7 @@ src/wazuh-monitord
 src/wazuh-remoted
 src/wazuh-reportd
 src/wazuh-syscheckd
+src/wazuh-local-analysisd
 src/wazuh-integratord
 src/wazuh-keystore
 src/wazuh-keystore-testtool

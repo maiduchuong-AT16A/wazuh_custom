@@ -13,10 +13,15 @@ static int alerts_sock = -1;
 
 void write_local_alert(const RuleInfo *rule, const char *log_msg, const char *location) {
     char timestamp[64];
-    time_t now = time(NULL);
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
     struct tm num_time;
-    localtime_r(&now, &num_time);
-    strftime(timestamp, sizeof(timestamp), "%Y-%m-%dT%H:%M:%S%z", &num_time);
+    localtime_r(&tv.tv_sec, &num_time);
+    char tz[16];
+    strftime(tz, sizeof(tz), "%z", &num_time);
+    char dt[32];
+    strftime(dt, sizeof(dt), "%Y-%m-%dT%H:%M:%S", &num_time);
+    snprintf(timestamp, sizeof(timestamp), "%s.%03ld%s", dt, tv.tv_usec / 1000, tz);
 
     cJSON *root = cJSON_CreateObject();
     if (!root) return;
@@ -24,10 +29,38 @@ void write_local_alert(const RuleInfo *rule, const char *log_msg, const char *lo
     cJSON_AddStringToObject(root, "timestamp", timestamp);
 
     cJSON *rule_json = cJSON_CreateObject();
-    cJSON_AddNumberToObject(rule_json, "id", rule->sigid);
+    char sigid_str[16];
+    snprintf(sigid_str, sizeof(sigid_str), "%d", rule->sigid);
+    cJSON_AddStringToObject(rule_json, "id", sigid_str);
     cJSON_AddNumberToObject(rule_json, "level", rule->level);
     cJSON_AddStringToObject(rule_json, "description", rule->comment ? rule->comment : "");
+    cJSON_AddNumberToObject(rule_json, "firedtimes", 1);
+    cJSON_AddItemToObject(rule_json, "mail", cJSON_CreateBool(false));
+
+    cJSON *groups = cJSON_CreateArray();
+    if (rule->group && *rule->group) {
+        char *grp_copy = strdup(rule->group);
+        if (grp_copy) {
+            char *saveptr = NULL;
+            char *tok = strtok_r(grp_copy, ",", &saveptr);
+            while (tok) {
+                while (*tok == ' ') tok++;
+                if (*tok) {
+                    cJSON_AddItemToArray(groups, cJSON_CreateString(tok));
+                }
+                tok = strtok_r(NULL, ",", &saveptr);
+            }
+            free(grp_copy);
+        }
+    } else {
+        cJSON_AddItemToArray(groups, cJSON_CreateString("ossec"));
+    }
+    cJSON_AddItemToObject(rule_json, "groups", groups);
     cJSON_AddItemToObject(root, "rule", rule_json);
+
+    cJSON *decoder = cJSON_CreateObject();
+    cJSON_AddStringToObject(decoder, "name", (location && *location) ? location : "ossec");
+    cJSON_AddItemToObject(root, "decoder", decoder);
 
     cJSON_AddStringToObject(root, "location", location ? location : "unknown");
     cJSON_AddStringToObject(root, "full_log", log_msg);

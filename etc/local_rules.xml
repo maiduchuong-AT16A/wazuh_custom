@@ -1,11 +1,10 @@
 <group name="local_rules">
   <rule id="100001" level="3">
-    <decoded_as>logcollector</decoded_as>
     <match>test_local_alert</match>
     <description>Local test rule triggered by local log match</description>
   </rule>
   <rule id="100002" level="7">
-    <decoded_as>syscheck</decoded_as>
+    <if_group>syscheck</if_group>
     <regex>file modified: \S+important.txt</regex>
     <description>Important file modified on Agent</description>
   </rule>

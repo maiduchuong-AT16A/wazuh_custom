@@ -259,10 +259,10 @@ int main(int argc, char **argv) {
         
         RuleInfo *matched_rule = OS_CheckIfRuleMatch(lf, os_analysisd_last_events, NULL, os_analysisd_rulelist, &decoder_match, NULL, NULL, false, NULL);
         
-        if (matched_rule && matched_rule->level >= 0) { // for test
+        if (matched_rule && matched_rule->level >= 3) {
             mdebug1("wazuh-local-analysisd: Detection successful for rule ID %d (level %d)", matched_rule->sigid, matched_rule->level);
             /* Write alert locally */
-            write_local_alert(matched_rule, msg, lf->location);
+            write_local_alert(matched_rule, lf->full_log ? lf->full_log : msg, lf->location);
             
             /* Trigger Active Responses */
             if (matched_rule->ar) {

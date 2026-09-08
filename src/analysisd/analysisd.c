@@ -43,6 +43,7 @@
 #include "syscheck_op.h"
 #include "lists_make.h"
 #include "hotreload.h"
+#include <cJSON.h>
 
 #ifdef PRELUDE_OUTPUT_ENABLED
 #include "output/prelude.h"
@@ -1225,14 +1226,158 @@ void * ad_input_main(void * args) {
             w_inc_received_events();
 
             if (msg[0] == 'A' && msg[1] == ':') {
-                /* JSON ALREADY ANALYZED BY EDGE AGENT - BYPASS ENGINE */
-                char *json_str = msg + 2;
-                w_mutex_lock(&writer_threads_mutex);
-                if (_jflog) {
-                    fprintf(_jflog, "%s\n", json_str);
-                    fflush(_jflog);
+                /* Pre-analyzed alert from edge agent */
+                char *payload = msg + 2;
+                char *json_ptr = strstr(payload, "->{");
+                if (!json_ptr) {
+                    json_ptr = strchr(payload, '{');
                 }
-                w_mutex_unlock(&writer_threads_mutex);
+                if (json_ptr) {
+                    char *json_raw = (json_ptr[0] == '-') ? json_ptr + 2 : json_ptr;
+                    
+                    char agent_id[64] = {0};
+                    char agent_name[256] = {0};
+                    char agent_ip[64] = {0};
+                    
+                    if (payload[0] == '[') {
+                        char *id_end = strchr(payload, ']');
+                        if (id_end) {
+                            size_t id_len = id_end - (payload + 1);
+                            if (id_len < sizeof(agent_id)) {
+                                strncpy(agent_id, payload + 1, id_len);
+                            }
+                            char *name_start = strchr(id_end, '(');
+                            if (name_start) {
+                                char *name_end = strchr(name_start, ')');
+                                if (name_end) {
+                                    size_t name_len = name_end - (name_start + 1);
+                                    if (name_len < sizeof(agent_name)) {
+                                        strncpy(agent_name, name_start + 1, name_len);
+                                    }
+                                    char *ip_start = name_end + 1;
+                                    while (*ip_start == ' ') ip_start++;
+                                    char *ip_end = strstr(ip_start, "->");
+                                    if (!ip_end) ip_end = json_ptr;
+                                    if (ip_end && ip_end > ip_start) {
+                                        size_t ip_len = ip_end - ip_start;
+                                        while (ip_len > 0 && ip_start[ip_len - 1] == ' ') ip_len--;
+                                        if (ip_len < sizeof(agent_ip) && strncmp(ip_start, "any", ip_len) != 0) {
+                                            strncpy(agent_ip, ip_start, ip_len);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    cJSON *alert_json = cJSON_Parse(json_raw);
+                    if (alert_json) {
+                        /* 1. Normalize timestamp to include milliseconds for Filebeat date processor */
+                        cJSON *ts_item = cJSON_GetObjectItem(alert_json, "timestamp");
+                        if (ts_item && cJSON_IsString(ts_item) && !strchr(ts_item->valuestring, '.')) {
+                            char normalized_ts[64];
+                            char dt_part[32] = {0};
+                            char tz_part[16] = {0};
+                            if (strlen(ts_item->valuestring) >= 19) {
+                                strncpy(dt_part, ts_item->valuestring, 19);
+                                strncpy(tz_part, ts_item->valuestring + 19, sizeof(tz_part) - 1);
+                                snprintf(normalized_ts, sizeof(normalized_ts), "%s.000%s", dt_part, tz_part);
+                                cJSON_DeleteItemFromObject(alert_json, "timestamp");
+                                cJSON_AddStringToObject(alert_json, "timestamp", normalized_ts);
+                            }
+                        }
+
+                        /* 2. Normalize rule object: string id, firedtimes, mail, groups */
+                        cJSON *rule = cJSON_GetObjectItem(alert_json, "rule");
+                        if (rule) {
+                            cJSON *id_item = cJSON_GetObjectItem(rule, "id");
+                            if (id_item && cJSON_IsNumber(id_item)) {
+                                char id_str[16];
+                                snprintf(id_str, sizeof(id_str), "%d", id_item->valueint);
+                                cJSON_DeleteItemFromObject(rule, "id");
+                                cJSON_AddStringToObject(rule, "id", id_str);
+                            }
+                            if (!cJSON_GetObjectItem(rule, "firedtimes")) {
+                                cJSON_AddNumberToObject(rule, "firedtimes", 1);
+                            }
+                            if (!cJSON_GetObjectItem(rule, "mail")) {
+                                cJSON_AddItemToObject(rule, "mail", cJSON_CreateBool(false));
+                            }
+                            if (!cJSON_GetObjectItem(rule, "groups")) {
+                                cJSON *groups = cJSON_CreateArray();
+                                cJSON_AddItemToArray(groups, cJSON_CreateString("ossec"));
+                                cJSON_AddItemToObject(rule, "groups", groups);
+                            }
+                        }
+
+                        /* 3. Decoder object */
+                        if (!cJSON_GetObjectItem(alert_json, "decoder")) {
+                            cJSON *decoder = cJSON_CreateObject();
+                            cJSON *loc_item = cJSON_GetObjectItem(alert_json, "location");
+                            cJSON_AddStringToObject(decoder, "name", (loc_item && cJSON_IsString(loc_item)) ? loc_item->valuestring : "ossec");
+                            cJSON_AddItemToObject(alert_json, "decoder", decoder);
+                        }
+
+                        /* 4. Agent object */
+                        cJSON *agent = cJSON_GetObjectItem(alert_json, "agent");
+                        if (!agent) {
+                            agent = cJSON_CreateObject();
+                            cJSON_AddItemToObject(alert_json, "agent", agent);
+                        }
+                        if (agent_id[0] && !cJSON_GetObjectItem(agent, "id")) {
+                            cJSON_AddStringToObject(agent, "id", agent_id);
+                        }
+                        if (agent_name[0] && !cJSON_GetObjectItem(agent, "name")) {
+                            cJSON_AddStringToObject(agent, "name", agent_name);
+                        }
+                        if (agent_ip[0] && !cJSON_GetObjectItem(agent, "ip")) {
+                            cJSON_AddStringToObject(agent, "ip", agent_ip);
+                        }
+
+                        /* 5. Manager object */
+                        if (!cJSON_GetObjectItem(alert_json, "manager")) {
+                            cJSON *manager = cJSON_CreateObject();
+                            cJSON_AddItemToObject(alert_json, "manager", manager);
+                            char manager_name[512] = {0};
+                            if (gethostname(manager_name, sizeof(manager_name) - 1) != 0) {
+                                strncpy(manager_name, "localhost", 32);
+                            }
+                            cJSON_AddStringToObject(manager, "name", manager_name);
+                        }
+
+                        /* 6. Cluster object */
+                        if (!Config.hide_cluster_info && !cJSON_GetObjectItem(alert_json, "cluster")) {
+                            cJSON *cluster = cJSON_CreateObject();
+                            cJSON_AddItemToObject(alert_json, "cluster", cluster);
+                            if (Config.cluster_name)
+                                cJSON_AddStringToObject(cluster, "name", Config.cluster_name);
+                            else
+                                cJSON_AddStringToObject(cluster, "name", "wazuh");
+                            if (Config.node_name)
+                                cJSON_AddStringToObject(cluster, "node", Config.node_name);
+                        }
+
+                        /* 7. Alert ID */
+                        if (!cJSON_GetObjectItem(alert_json, "id")) {
+                            char alert_id[23];
+                            alert_id[22] = '\0';
+                            snprintf(alert_id, 22, "%ld.%ld", (long int)c_timespec.tv_sec, get_global_alert_second_id());
+                            cJSON_AddStringToObject(alert_json, "id", alert_id);
+                        }
+
+                        char *formatted_alert = cJSON_PrintUnformatted(alert_json);
+                        if (formatted_alert) {
+                            w_mutex_lock(&writer_threads_mutex);
+                            if (_jflog) {
+                                fprintf(_jflog, "%s\n", formatted_alert);
+                                fflush(_jflog);
+                            }
+                            w_mutex_unlock(&writer_threads_mutex);
+                            free(formatted_alert);
+                        }
+                        cJSON_Delete(alert_json);
+                    }
+                }
                 continue;
             }
 

@@ -193,15 +193,15 @@ int main(int argc, char **argv) {
     OS_CreateOSDecoderList();
     OS_CreateRuleList();
     
-    load_xml_directory("ruleset/decoders", 0, log_msg);
-    load_xml_directory("etc/decoders", 0, log_msg);
+    load_xml_directory("etc/shared/ruleset/decoders", 0, log_msg);
+    load_xml_directory("etc/shared/etc/decoders", 0, log_msg);
     SetDecodeXML(log_msg, &os_analysisd_decoder_store, &os_analysisd_decoderlist_nopn, &os_analysisd_decoderlist_pn);
     
     os_calloc(1, sizeof(EventList), os_analysisd_last_events);
     OS_CreateEventList(256, os_analysisd_last_events);
 
-    load_xml_directory("ruleset/rules", 1, log_msg);
-    load_xml_directory("etc/rules", 1, log_msg);
+    load_xml_directory("etc/shared/ruleset/rules", 1, log_msg);
+    load_xml_directory("etc/shared/etc/rules", 1, log_msg);
 
     _setlevels(OS_GetFirstRule(), 0);
 

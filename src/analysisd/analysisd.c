@@ -1228,6 +1228,7 @@ void * ad_input_main(void * args) {
             if (msg[0] == 'A' && msg[1] == ':') {
                 /* Pre-analyzed alert from edge agent */
                 char *payload = msg + 2;
+                minfo("[EDGE-ALERT-RECV] Received pre-analyzed alert from agent: %.120s", payload);
                 char *json_ptr = strstr(payload, "->{");
                 if (!json_ptr) {
                     json_ptr = strchr(payload, '{');
@@ -1373,6 +1374,7 @@ void * ad_input_main(void * args) {
                                 fflush(_jflog);
                             }
                             w_mutex_unlock(&writer_threads_mutex);
+                            minfo("[EDGE-ALERT-WRITTEN] Successfully written Edge Alert to alerts.json (Agent: %s, ID: %s)", agent_name[0] ? agent_name : "unknown", agent_id[0] ? agent_id : "unknown");
                             free(formatted_alert);
                         }
                         cJSON_Delete(alert_json);
@@ -1381,6 +1383,11 @@ void * ad_input_main(void * args) {
                 continue;
             }
 
+            /* Log and drop all raw logs to prevent entering decoders and rule matching */
+            minfo("[RAW-LOG-BLOCKED] Dropping raw event (Type: '%c', Length: %ld): %.120s", msg[0], (long)strlen(msg), msg);
+            continue;
+
+            merror("[CRITICAL-LEAK] A raw message bypassed continue: %.80s", msg);
             result = -1;
             // take the ruleset
             w_rwlock_rdlock(&g_hotreload_ruleset_mutex);

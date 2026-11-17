@@ -1,0 +1,6 @@
+{
+  "classes": ["normal", "nmap", "nikto", "vrfy", "hydra", "upload", "webshell", "privesc"],
+  "window_seconds": 60,
+  "line_threshold": 0.5,
+  "min_alert_lines_per_window": 148
+}

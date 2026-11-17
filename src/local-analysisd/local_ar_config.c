@@ -47,7 +47,7 @@ int local_ar_config_init(const char *cfg_file) {
 #endif
     chmod(DEFAULTAR, 0640);
 
-    /* Pass 1: Parse commands */
+    /* Pass 1: Parse commands & alerts */
     for (i = 0; node[i]; i++) {
         if (!node[i]->element) continue;
         if (strcmp(node[i]->element, "ossec_config") == 0) {
@@ -61,12 +61,38 @@ int local_ar_config_init(const char *cfg_file) {
                             ReadActiveCommands(cmd_node, commands, NULL);
                             OS_ClearNode(cmd_node);
                         }
+                    } else if (strcmp(child[j]->element, "alerts") == 0) {
+                        XML_NODE alerts_node = OS_GetElementsbyNode(&xml, child[j]);
+                        if (alerts_node) {
+                            for (int k = 0; alerts_node[k]; k++) {
+                                if (!alerts_node[k]->element || !alerts_node[k]->content) continue;
+                                if (strcmp(alerts_node[k]->element, "log_alert_level") == 0 &&
+                                    OS_StrIsNum(alerts_node[k]->content)) {
+                                    Config.logbylevel = atoi(alerts_node[k]->content);
+                                } else if (strcmp(alerts_node[k]->element, "email_alert_level") == 0 &&
+                                           OS_StrIsNum(alerts_node[k]->content)) {
+                                    Config.mailbylevel = atoi(alerts_node[k]->content);
+                                } else if (strcmp(alerts_node[k]->element, "ai_only") == 0) {
+                                    if (strcasecmp(alerts_node[k]->content, "yes") == 0 ||
+                                        strcmp(alerts_node[k]->content, "1") == 0 ||
+                                        strcasecmp(alerts_node[k]->content, "true") == 0) {
+                                        Config.ai_only = 1;
+                                    } else {
+                                        Config.ai_only = 0;
+                                    }
+                                }
+                            }
+                            OS_ClearNode(alerts_node);
+                        }
                     }
                 }
                 OS_ClearNode(child);
             }
         }
     }
+
+    minfo("wazuh-local-analysisd: Alert log level set to %d (email level: %d, ai_only: %s)",
+          Config.logbylevel, Config.mailbylevel, Config.ai_only ? "yes" : "no");
 
     /* Pass 2: Parse active-responses */
     for (i = 0; node[i]; i++) {

@@ -26,7 +26,7 @@ if [ $? = 0 ]; then
 fi
 
 AUTHOR="Wazuh Inc."
-DAEMONS="wazuh-modulesd wazuh-monitord wazuh-logcollector wazuh-syscheckd wazuh-analysisd wazuh-maild wazuh-execd wazuh-db wazuh-agentlessd wazuh-integratord wazuh-dbd wazuh-csyslogd"
+DAEMONS="wazuh-modulesd wazuh-monitord wazuh-logcollector wazuh-syscheckd wazuh-analysisd wazuh-maild wazuh-execd wazuh-db wazuh-agentlessd wazuh-integratord wazuh-dbd wazuh-csyslogd wazuh-ai-daemon"
 
 # Reverse order of daemons
 SDAEMONS=$(echo $DAEMONS | awk '{ for (i=NF; i>1; i--) printf("%s ",$i); print $1; }')
@@ -201,6 +201,9 @@ testconfig()
 {
     # We first loop to check the config
     for i in ${SDAEMONS}; do
+        if [ "$i" = "wazuh-ai-daemon" ]; then
+            continue
+        fi
         ${DIR}/bin/${i} -t ${DEBUG_CLI};
         if [ $? != 0 ]; then
             if [ ! -f ${DIR}/var/run/.restart ]; then

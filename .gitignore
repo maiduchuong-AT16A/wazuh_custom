@@ -175,3 +175,10 @@ src/result-*.txt
 tools/repository_bumper_*
 
 docs/
+
+# Python / AI Daemon
+__pycache__/
+*.pyc
+.venv/
+venv/
+

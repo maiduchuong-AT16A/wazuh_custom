@@ -51,6 +51,8 @@ typedef struct _Config {
     void *labels;
     int mailbylevel;
     int logbylevel;
+    int ai_only;
+    int rule_only;
     OSHash *g_rules_hash;
 } _Config;
 extern _Config Config;
@@ -76,5 +78,7 @@ int OS_DBSearch(ListRule *lrule, char *key, ListNode **l_node);
 char *FTS(struct _Eventinfo *lf, OSList **fts_list, OSHash **fts_store);
 #define w_guard_mutex_variable(mutex, var) do { (var); } while(0)
 time_t w_get_current_time(void);
+
+void os_remove_cdbrules(ListRule **l_rule);
 
 #endif

@@ -27,7 +27,7 @@ fi
 
 AUTHOR="Wazuh Inc."
 USE_JSON=false
-DAEMONS="wazuh-clusterd wazuh-modulesd wazuh-monitord wazuh-logcollector wazuh-remoted wazuh-syscheckd wazuh-analysisd wazuh-maild wazuh-execd wazuh-db wazuh-authd wazuh-agentlessd wazuh-integratord wazuh-dbd wazuh-csyslogd wazuh-apid"
+DAEMONS="wazuh-clusterd wazuh-modulesd wazuh-monitord wazuh-logcollector wazuh-remoted wazuh-syscheckd wazuh-analysisd wazuh-maild wazuh-execd wazuh-db wazuh-authd wazuh-agentlessd wazuh-integratord wazuh-dbd wazuh-csyslogd wazuh-apid wazuh-ai-daemon"
 OP_DAEMONS="wazuh-clusterd wazuh-maild wazuh-agentlessd wazuh-integratord wazuh-dbd wazuh-csyslogd"
 DEPRECATED_DAEMONS="ossec-authd"
 
@@ -237,6 +237,9 @@ testconfig()
 {
     # We first loop to check the config.
     for i in ${SDAEMONS}; do
+        if [ "$i" = "wazuh-ai-daemon" ]; then
+            continue
+        fi
         ${DIR}/bin/${i} -t ${DEBUG_CLI};
         if [ $? != 0 ]; then
             if [ $USE_JSON = true ]; then

@@ -7,8 +7,10 @@ int __crt_wday = 0;
 _Config Config = {
     .decoder_order_size = 256,
     .labels = NULL,
-    .mailbylevel = 10,
-    .logbylevel = 10,
+    .mailbylevel = 12,
+    .logbylevel = 3,
+    .ai_only = 0,
+    .rule_only = 0,
     .g_rules_hash = NULL
 };
 

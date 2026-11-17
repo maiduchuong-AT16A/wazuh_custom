@@ -17,7 +17,7 @@ TYPE="agent"
 
 ###  Do not modify below here ###
 AUTHOR="Wazuh Inc."
-DAEMONS="wazuh-local-analysisd wazuh-agentd wazuh-modulesd wazuh-logcollector wazuh-syscheckd wazuh-execd"
+DAEMONS="wazuh-local-analysisd wazuh-agentd wazuh-modulesd wazuh-logcollector wazuh-syscheckd wazuh-execd wazuh-ai-daemon"
 
 # Reverse order of daemons
 SDAEMONS=$(echo $DAEMONS | awk '{ for (i=NF; i>1; i--) printf("%s ",$i); print $1; }')
@@ -117,7 +117,7 @@ testconfig()
 {
     # We first loop to check the config.
     for i in ${SDAEMONS}; do
-        if [ "$i" = "wazuh-local-analysisd" ]; then
+        if [ "$i" = "wazuh-local-analysisd" ] || [ "$i" = "wazuh-ai-daemon" ]; then
             continue
         fi
         ${DIR}/bin/${i} -t;

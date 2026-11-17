@@ -149,7 +149,7 @@ WriteOsquery()
 # WriteCISCAT()
 ##########
 WriteCISCAT()
-{
+{ 
     # Adding to the config file
     CISCAT_TEMPLATE=$(GetTemplate "wodle-ciscat.$1.template" ${DIST_NAME} ${DIST_VER} ${DIST_SUBVER})
     if [ "$CISCAT_TEMPLATE" = "ERROR_NOT_FOUND" ]; then
@@ -395,6 +395,10 @@ WriteAgent()
     echo "    <queue_size>5000</queue_size>" >> $NEWCONFIG
     echo "    <events_per_second>500</events_per_second>" >> $NEWCONFIG
     echo "  </client_buffer>" >> $NEWCONFIG
+    echo "" >> $NEWCONFIG
+
+    # Alerts level
+    cat ${ALERTS_TEMPLATE} >> $NEWCONFIG
     echo "" >> $NEWCONFIG
 
     # Rootcheck
@@ -1076,6 +1080,55 @@ InstallCommon()
 
 }
 
+InstallAIDaemon()
+{
+    # 1. Tạo thư mục IPC Socket cho AI
+    ${INSTALL} -d -m 0770 -o ${WAZUH_USER} -g ${WAZUH_GROUP} ${INSTALLDIR}/queue/ai
+
+    # 2. Tạo thư mục và sao chép source/models
+    ${INSTALL} -d -m 0750 -o root -g ${WAZUH_GROUP} ${INSTALLDIR}/ai_daemon
+    if [ -d ../models-AI ]; then
+        cp -pr ../models-AI ${INSTALLDIR}/ai_daemon/
+    elif [ -d ./models-AI ]; then
+        cp -pr ./models-AI ${INSTALLDIR}/ai_daemon/
+    fi
+
+    if [ -d ./daemon ]; then
+        cp -pr ./daemon/* ${INSTALLDIR}/ai_daemon/
+    elif [ -d ../src/daemon ]; then
+        cp -pr ../src/daemon/* ${INSTALLDIR}/ai_daemon/
+    fi
+
+    # 3. Copy file Wrapper vào bin
+    if [ -f ./init/wazuh-ai-daemon ]; then
+        ${INSTALL} -m 0750 -o root -g 0 ./init/wazuh-ai-daemon ${INSTALLDIR}/bin/
+    elif [ -f ../src/init/wazuh-ai-daemon ]; then
+        ${INSTALL} -m 0750 -o root -g 0 ../src/init/wazuh-ai-daemon ${INSTALLDIR}/bin/
+    elif [ -f ../init/wazuh-ai-daemon ]; then
+        ${INSTALL} -m 0750 -o root -g 0 ../init/wazuh-ai-daemon ${INSTALLDIR}/bin/
+    fi
+
+    # 4. Môi trường Python và dependencies
+    if [ -x "${INSTALLDIR}/framework/python/bin/python3" ]; then
+        ${INSTALLDIR}/framework/python/bin/python3 -m pip install -r ${INSTALLDIR}/ai_daemon/requirements.txt
+    elif [ -x "${INSTALLDIR}/ai_daemon/.venv/bin/python" ]; then
+        :
+    elif [ -d "./daemon/.venv" ]; then
+        cp -a ./daemon/.venv ${INSTALLDIR}/ai_daemon/
+    elif [ -d "../src/daemon/.venv" ]; then
+        cp -a ../src/daemon/.venv ${INSTALLDIR}/ai_daemon/
+    elif command -v python3 >/dev/null 2>&1; then
+        python3 -m venv ${INSTALLDIR}/ai_daemon/.venv --system-site-packages 2>/dev/null || true
+        if [ -x "${INSTALLDIR}/ai_daemon/.venv/bin/pip" ]; then
+            ${INSTALLDIR}/ai_daemon/.venv/bin/pip install -r ${INSTALLDIR}/ai_daemon/requirements.txt 2>/dev/null || true
+        fi
+    fi
+
+    # 5. Phân quyền
+    chown -R root:${WAZUH_GROUP} ${INSTALLDIR}/ai_daemon
+    chmod -R 0750 ${INSTALLDIR}/ai_daemon
+}
+
 InstallLocal()
 {
 
@@ -1246,6 +1299,8 @@ InstallLocal()
             chcon -t textrel_shlib_t ${INSTALLDIR}/lib/librouter.so
         fi
     fi
+
+    InstallAIDaemon
 }
 
 TransferShared()
@@ -1431,6 +1486,8 @@ InstallServer()
     # Keystore
     ${INSTALL} -d -m 0750 -o ${WAZUH_USER} -g ${WAZUH_GROUP} ${INSTALLDIR}/queue/keystore
     ${INSTALL} -m 0750 -o root -g ${WAZUH_GROUP} wazuh-keystore ${INSTALLDIR}/bin/
+
+    InstallAIDaemon
 }
 
 InstallAgent()
@@ -1526,6 +1583,8 @@ InstallAgent()
 
     # Install wazuh-local-analysisd binary
     ${INSTALL} -m 0750 -o root -g 0 wazuh-local-analysisd ${INSTALLDIR}/bin
+
+    InstallAIDaemon
 }
 
 InstallWazuh()

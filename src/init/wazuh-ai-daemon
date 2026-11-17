@@ -1,0 +1,147 @@
+#!/bin/sh
+# Wazuh AI Inference Daemon wrapper script
+# Controls startup, PID management, and environment setup for ai_daemon.py
+
+NAME="wazuh-ai-daemon"
+
+# Determine Wazuh installation directory
+LOCAL=`dirname "$0"`
+DIR=`dirname "$LOCAL"`
+if [ "X${DIR}" = "X" ] || [ ! -d "${DIR}/var/run" ]; then
+    DIR="/var/ossec"
+fi
+
+PID_DIR="${DIR}/var/run"
+LOG_DIR="${DIR}/logs"
+SOCKET_DIR="${DIR}/queue/ai"
+LOG_FILE="${LOG_DIR}/ai_daemon.log"
+
+# Locate Python environment
+PYTHON_BIN=""
+if [ -x "${DIR}/framework/python/bin/python3" ]; then
+    PYTHON_BIN="${DIR}/framework/python/bin/python3"
+elif [ -x "${DIR}/ai_daemon/.venv/bin/python3" ]; then
+    PYTHON_BIN="${DIR}/ai_daemon/.venv/bin/python3"
+elif [ -x "${DIR}/ai_daemon/.venv/bin/python" ]; then
+    PYTHON_BIN="${DIR}/ai_daemon/.venv/bin/python"
+elif [ -x "/root/projects/wazuh/wazuh_custom/src/daemon/.venv/bin/python" ]; then
+    PYTHON_BIN="/root/projects/wazuh/wazuh_custom/src/daemon/.venv/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN=$(command -v python3)
+fi
+
+DAEMON_SCRIPT="${DIR}/ai_daemon/ai_daemon.py"
+if [ ! -f "${DAEMON_SCRIPT}" ]; then
+    if [ -f "/root/projects/wazuh/wazuh_custom/src/daemon/ai_daemon.py" ]; then
+        DAEMON_SCRIPT="/root/projects/wazuh/wazuh_custom/src/daemon/ai_daemon.py"
+    fi
+fi
+
+# Handle configuration test (-t)
+if [ "$1" = "-t" ]; then
+    if [ -z "$PYTHON_BIN" ] || [ ! -x "$PYTHON_BIN" ]; then
+        echo "wazuh-ai-daemon: Python environment not found."
+        exit 1
+    fi
+    if [ ! -f "$DAEMON_SCRIPT" ]; then
+        echo "wazuh-ai-daemon: Script not found: $DAEMON_SCRIPT"
+        exit 1
+    fi
+    exit 0
+fi
+
+# Handle stop command
+if [ "$1" = "stop" ]; then
+    for pidfile in ${PID_DIR}/${NAME}-*.pid ${PID_DIR}/${NAME}.pid; do
+        if [ -f "$pidfile" ]; then
+            pid=$(cat "$pidfile" 2>/dev/null)
+            if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+                kill -15 "$pid" 2>/dev/null || true
+            fi
+            rm -f "$pidfile" 2>/dev/null
+        fi
+    done
+    rm -f "${SOCKET_DIR}/ai_inference.sock" 2>/dev/null
+    exit 0
+fi
+
+# Handle status command
+if [ "$1" = "status" ]; then
+    found=0
+    for pidfile in ${PID_DIR}/${NAME}-*.pid; do
+        if [ -f "$pidfile" ]; then
+            pid=$(cat "$pidfile" 2>/dev/null)
+            if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+                echo "${NAME} is running (pid ${pid})..."
+                found=1
+                break
+            fi
+        fi
+    done
+    if [ $found -eq 0 ]; then
+        echo "${NAME} is not running..."
+        exit 1
+    fi
+    exit 0
+fi
+
+# Validate environment before running
+if [ -z "$PYTHON_BIN" ] || [ ! -x "$PYTHON_BIN" ]; then
+    echo "Python Wazuh environment not found. Ensure framework python or virtualenv is installed."
+    exit 1
+fi
+
+if [ ! -f "$DAEMON_SCRIPT" ]; then
+    echo "Daemon script not found at ${DAEMON_SCRIPT}."
+    exit 1
+fi
+
+# Ensure runtime directories exist
+mkdir -p "${PID_DIR}" "${LOG_DIR}" "${SOCKET_DIR}"
+chmod 770 "${SOCKET_DIR}" 2>/dev/null || true
+chown root:wazuh "${SOCKET_DIR}" 2>/dev/null || true
+
+# Handle foreground mode (-f)
+if [ "$1" = "-f" ]; then
+    exec nice -n 15 "$PYTHON_BIN" "$DAEMON_SCRIPT"
+fi
+
+# Clean up stale PID and socket files before starting
+for oldpidfile in ${PID_DIR}/${NAME}-*.pid ${PID_DIR}/${NAME}.pid; do
+    if [ -f "$oldpidfile" ]; then
+        oldpid=$(cat "$oldpidfile" 2>/dev/null)
+        if [ -z "$oldpid" ] || ! kill -0 "$oldpid" 2>/dev/null; then
+            rm -f "$oldpidfile" 2>/dev/null
+        fi
+    fi
+done
+
+# Start background daemon with nice -n 15
+nice -n 15 "$PYTHON_BIN" "$DAEMON_SCRIPT" >> "$LOG_FILE" 2>&1 &
+PID=$!
+
+if [ -z "$PID" ] || [ "$PID" -le 0 ]; then
+    echo "Failed to start ${NAME}."
+    exit 1
+fi
+
+# Write Wazuh standard PID file (${NAME}-${PID}.pid)
+PIDFILE="${PID_DIR}/${NAME}-${PID}.pid"
+echo "$PID" > "$PIDFILE"
+chmod 640 "$PIDFILE" 2>/dev/null || true
+chown root:wazuh "$PIDFILE" 2>/dev/null || true
+
+# Also maintain ${NAME}.pid
+echo "$PID" > "${PID_DIR}/${NAME}.pid"
+chmod 640 "${PID_DIR}/${NAME}.pid" 2>/dev/null || true
+chown root:wazuh "${PID_DIR}/${NAME}.pid" 2>/dev/null || true
+
+# Sanity check
+sleep 0.2
+if kill -0 "$PID" 2>/dev/null; then
+    exit 0
+else
+    echo "${NAME} failed to start. See ${LOG_FILE} for details."
+    rm -f "$PIDFILE" "${PID_DIR}/${NAME}.pid" 2>/dev/null
+    exit 1
+fi
